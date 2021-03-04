@@ -23,14 +23,14 @@ def StripUnprintable(msg):
 class TPKTPacket:
     """ TPKT packet. RFC 1006
     """
-    def __init__(self, data=''):
-        self.data = str(data)
+    def __init__(self, packet):
+        self.data = packet.data
     def pack(self):
         return pack('!BBH',
-            3,                  # version
-            0,                  # reserved
-            len(self.data)+4    # packet size
-        ) + str(self.data)
+                    3,                  # version
+                    0,                  # reserved
+                    len(self.data)+4    # packet size
+                    ) + self.data
     def unpack(self,packet):
         try:
             header = unpack('!BBH', packet[:4])
@@ -54,14 +54,14 @@ class COTPConnectionPacket:
         """ make Connection Request Packet
         """
         return pack('!BBHHBBBHBBHBBB',
-            17,             # size
-            0xe0,           # pdu type: CR
-            self.dst_ref,
-            self.src_ref,
-            0,              # flag
-            0xc1, 2, self.src_tsap,
-            0xc2, 2, self.dst_tsap,
-            0xc0, 1, self.tpdu_size )
+                    17,             # size
+                    0xe0,           # pdu type: CR
+                    self.dst_ref,
+                    self.src_ref,
+                    0,              # flag
+                    0xc1, 2, self.src_tsap,
+                    0xc2, 2, self.dst_tsap,
+                    0xc0, 1, self.tpdu_size )
     def __str__(self):
         return self.pack()
 
@@ -82,13 +82,13 @@ class COTPConnectionPacket:
 class COTPDataPacket:
     """ COTP Data packet (ISO on TCP). RFC 1006
     """
-    def __init__(self, data=''):
-        self.data = data
+    def __init__(self, packet):
+        self.data = packet.data
     def pack(self):
         return pack('!BBB',
-            2,                      # header len
-            0xf0,                   # data packet
-            0x80) + str(self.data)
+                    2,                      # header len
+                    0xf0,                   # data packet
+                    0x80) + self.data
     def unpack(self, packet):
         self.data = packet[ord(packet[0])+1:]
         return self
@@ -109,12 +109,12 @@ class S7Packet:
         if self.type not in [1,7]:
             raise S7ProtocolError("Unknown pdu type")
         return ( pack('!BBHHHH',
-            0x32,                   # protocol s7 magic
-            self.type,              # pdu-type
-            0,                      # reserved
-            self.req_id,            # request id
-            len(self.parameters),   # parameters length
-            len(self.data)) +       # data length
+                      0x32,                   # protocol s7 magic
+                      self.type,              # pdu-type
+                      0,                      # reserved
+                      self.req_id,            # request id
+                      len(self.parameters),   # parameters length
+                      len(self.data)) +       # data length
                  self.parameters +
                  self.data )
 
@@ -215,23 +215,23 @@ class s7:
         """ Send negotiate pdu request and receive response. Reply no matter
         """
         response = self.Request(0x01, pack('!BBHHH',
-            0xf0,       # function NegotiatePDU
-            0x00,       # unknown
-            0x01,       # max number of parallel jobs
-            0x01,       # max number of parallel jobs
-            pdu))      # pdu length
+                                           0xf0,       # function NegotiatePDU
+                                           0x00,       # unknown
+                                           0x01,       # max number of parallel jobs
+                                           0x01,       # max number of parallel jobs
+                                           pdu))      # pdu length
 
         func, unknown, pj1, pj2, pdu = unpack('!BBHHH', response.parameters)
         return pdu
 
     def Function(self, type, group, function, data=''):
         parameters = pack('!LBBBB',
-            0x00011200 +            # parameter head (magic)
-            0x04,                   # parameter length
-            0x11,                   # unknown
-            type*0x10+group,        # type, function group
-            function,               # function
-            0x00 )                  # sequence
+                          0x00011200 +            # parameter head (magic)
+                          0x04,                   # parameter length
+                          0x11,                   # unknown
+                          type*0x10+group,        # type, function group
+                          function,               # function
+                          0x00 )                  # sequence
 
         data = pack('!BBH', 0xFF, 0x09, len(data)) + data
         response = self.Request(0x07, parameters, data)
@@ -247,8 +247,8 @@ class s7:
             0x04,                   # szl-functions
             0x01,                   # read szl
             pack('!HH',
-                szl_id,             # szl id
-                1))                 # szl index
+                 szl_id,             # szl id
+                 1))                 # szl index
 
         szl_id, szl_index, element_size, element_count = unpack('!HHHH', szl_data[:8])
 
@@ -274,38 +274,38 @@ def GetIdentity(ip, port, src_tsap, dst_tsap):
 
     szl_dict = {
         0x11:
-                { 'title': 'Module Identification',
-                  'indexes': {
-                      1:'Module',
-                      6:'Basic Hardware',
-                      7:'Basic Firmware'
-                  },
-                  'packer': {
-                      (1, 6): lambda(packet): "{0:s} v.{2:d}.{3:d}".format(*unpack('!20sHBBH', packet)),
-                      (7,): lambda(packet): "{0:s} v.{3:d}.{4:d}.{5:d}".format(*unpack('!20sHBBBB', packet))
-                  }
-                },
+            { 'title': 'Module Identification',
+              'indexes': {
+                  1:'Module',
+                  6:'Basic Hardware',
+                  7:'Basic Firmware'
+              },
+              'packer': {
+                  (1, 6): lambda(packet): "{0:s} v.{2:d}.{3:d}".format(*unpack('!20sHBBH', packet)),
+                  (7,): lambda(packet): "{0:s} v.{3:d}.{4:d}.{5:d}".format(*unpack('!20sHBBBB', packet))
+              }
+              },
         0x1c:
-                { 'title': 'Component Identification',
-                  'indexes': {
-                      1: 'Name of the PLC',
-                      2: 'Name of the module',
-                      3: 'Plant identification',
-                      4: 'Copyright',
-                      5: 'Serial number of module',
-                      6: 'Reserved for operating system',
-                      7: 'Module type name',
-                      8: 'Serial number of memory card',
-                      9: 'Manufacturer and profile of a CPU module',
-                      10:'OEM ID of a module',
-                      11:'Location designation of a module'
-                  },
-                  'packer': {
-                      (1, 2, 5): lambda(packet): "%s" % packet[:24],
-                      (3, 7, 8): lambda(packet): "%s" % packet[:32],
-                      (4,): lambda(packet): "%s" % packet[:26]
-                  }
-                }
+            { 'title': 'Component Identification',
+              'indexes': {
+                  1: 'Name of the PLC',
+                  2: 'Name of the module',
+                  3: 'Plant identification',
+                  4: 'Copyright',
+                  5: 'Serial number of module',
+                  6: 'Reserved for operating system',
+                  7: 'Module type name',
+                  8: 'Serial number of memory card',
+                  9: 'Manufacturer and profile of a CPU module',
+                  10:'OEM ID of a module',
+                  11:'Location designation of a module'
+              },
+              'packer': {
+                  (1, 2, 5): lambda(packet): "%s" % packet[:24],
+                  (3, 7, 8): lambda(packet): "%s" % packet[:32],
+                  (4,): lambda(packet): "%s" % packet[:26]
+              }
+              }
     }
 
     con = s7(ip, port, src_tsap, dst_tsap)
